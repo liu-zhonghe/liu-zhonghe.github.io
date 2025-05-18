@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>读书笔记</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>我的读书笔记</h1>
+        <button id="addNoteBtn" class="cta-button">新增笔记</button>
+
+        <!-- 笔记列表 -->
+        <div id="notesList" style="margin-top: 20px;"></div>
+
+        <!-- 新增/编辑笔记模态框（默认隐藏） -->
+        <div id="noteModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close" id="closeModal">&times;</span>
+                <h2 id="modalTitle">新增笔记</h2>
+                <input type="text" id="noteTitle" placeholder="笔记标题" required>
+                <textarea id="noteContent" placeholder="笔记内容" rows="5" required></textarea>
+                <button id="saveNoteBtn" class="cta-button">保存</button>
+            </div>
+        </div>
+
+        <!-- 语言切换链接 -->
+        <a href="notes-en.html" class="lang-switch" style="margin-top: 20px;">Switch to English</a>
+    </div>
+
+    <script>
+        let currentNoteId = null; // 记录当前编辑的笔记ID
+
+        // 初始化：加载笔记列表（移除登录状态检查）
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNotes(); // 直接加载笔记
+        });
+
+        // 修改数据请求：移除JWT令牌（公共访问）
+        async function loadNotes() {
+            const notesList = document.getElementById('notesList');
+            try {
+                const response = await fetch('/api/notes', {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    // 保留旧数据，不清空
+                    console.error('请求失败：', response.statusText); // 仅记录日志
+                    return;
+                }
+
+                const notes = await response.json();
+                notesList.innerHTML = notes.map(note => `
+                    <div class="note-card">
+                        <h3>${note.title}</h3>
+                        <p>${note.content}</p>
+                        <small>创建时间：${new Date(note.create_time).toLocaleString()}</small>
+                        <div class="note-actions">
+                            <button onclick="editNote(${note.id})" class="edit-btn">编辑</button>
+                            <button onclick="deleteNote(${note.id})" class="delete-btn">删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                // 移除alert，仅记录错误日志
+                console.error('加载笔记失败：', error);
+            }
+        }
+
+        // 显示模态框（新增/编辑）
+        function showModal(isEdit = false) {
+            document.getElementById('noteModal').style.display = 'block';
+            document.getElementById('modalTitle').textContent = isEdit ? '编辑笔记' : '新增笔记';
+            if (!isEdit) {
+                document.getElementById('noteTitle').value = '';
+                document.getElementById('noteContent').value = '';
+                currentNoteId = null;
+            }
+        }
+
+        // 保存笔记（新增/更新）
+
+            async function saveNote(){
+                const title = document.getElementById('noteTitle').value.trim();
+                const content = document.getElementById('noteContent').value.trim();
+
+                // 新增：格式校验（示例：标题仅允许中文、字母、数字和基本符号）
+                const titleRegex = /^[\u4e00-\u9fa5a-zA-Z0-9\s.,!?]+$/; // 允许中文、字母、数字、空格和常用标点
+                if (!titleRegex.test(title)) {
+                    alert('标题格式错误：仅支持中文、字母、数字及常用标点（如.,!?）');
+                    return;
+                }
+
+                // 原有内容非空校验
+                if (!title || !content) {
+                    alert('请填写标题和内容');
+                    return;
+                }
+
+                try {
+                    const url = currentNoteId ? `/api/notes/${currentNoteId}` : '/api/notes';
+                    const method = currentNoteId ? 'PUT' : 'POST';
+
+                    const response = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' }, // 移除Authorization头
+                        body: JSON.stringify({ title, content })
+                    });
+
+                    if (response.ok) {
+                        alert(currentNoteId ? '笔记更新成功' : '笔记创建成功');
+                        loadNotes(); // 刷新列表
+                        document.getElementById('noteModal').style.display = 'none';
+                    } else {
+                        alert('操作失败：' + (await response.json()).message);
+                    }
+                } catch (error) {
+                    alert('网络错误：' + error.message);
+                }
+            }
+
+
+        // 编辑笔记
+        async function editNote(noteId) {
+            try {
+                const response = await fetch(`/api/notes/${noteId}`);
+                const note = await response.json();
+                document.getElementById('noteTitle').value = note.title;
+                document.getElementById('noteContent').value = note.content;
+                currentNoteId = noteId;
+                showModal(true);
+            } catch (error) {
+                alert('加载笔记失败：' + error.message);
+            }
+        }
+
+        // 删除笔记
+        async function deleteNote(noteId) {
+            if (!confirm('确定要删除这篇笔记吗？')) return;
+            try {
+                const response = await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
+                if (response.ok) {
+                    alert('笔记删除成功');
+                    loadNotes(); // 刷新列表
+                } else {
+                    alert('删除失败：' + (await response.json()).message);
+                }
+            } catch (error) {
+                alert('网络错误：' + error.message);
+            }
+        }
+
+        // 事件绑定
+        document.getElementById('addNoteBtn').addEventListener('click', () => showModal(false));
+        document.getElementById('saveNoteBtn').addEventListener('click', saveNote);
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('noteModal').style.display = 'none';
+        });
+
+        // 模态框外部点击关闭
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('noteModal');
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
