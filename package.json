@@ -1,10 +1,12 @@
 {
-  "devDependencies": {
-    "jest": "^29.3.1",
-    "@types/jest": "^29.2.5"
-  },
-
+  "name": "web-bookmark",
+  "version": "1.0.0",
+  "description": "A simple web bookmark application",
+  "main": "server.js",
   "scripts": {
-    "test": "jest"
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
   }
 }
